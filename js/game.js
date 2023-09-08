@@ -1,595 +1,616 @@
-/* 
+/*
  * Game
- * The main 0h h1 game, a singleton object in global scope.
- * (c) 2014 Q42
- * http://q42.com | @q42
- * Written by Martin Kool
- * martin@q42.nl | @mrtnkl
+ * The main game, a singleton object in global scope.
  */
-var Game = new (function() {
-  var self = this,
-      debug = Config.debug,
-      tweet = Config.tweet,
-      startedTutorial = false,
-      grid,
-      sizes = [4,6,8,10],
-      lastSize = 0,
-      currentPuzzle = null,
-      checkTOH = 0,
-      ojoos = ['Wonderful','Spectacular','Marvelous','Outstanding','Remarkable','Shazam','Impressive','Great','Well done','Fabulous','Clever','Dazzling','Fantastic','Excellent','Nice','Super','Awesome','Ojoo','Brilliant','Splendid','Exceptional','Magnificent','Yay'],
-      remainingOjoos = [],
-      endGameTOH1,
-      endGameTOH2,
-      endGameTOH3,
-      onHomeScreen = true,
-      undoStack = [],
-      undone = false,
-      gameEnded = false;
+window.Game = {
+  debug: Config.debug,
+  startedTutorial: false,
+  grid: undefined,
+  sizes: [4, 6, 8, 10],
+  lastSize: 0,
+  currentPuzzle: null,
+  checkTOH: 0,
+  ojoos: [
+    "Wonderful",
+    "Spectacular",
+    "Marvelous",
+    "Outstanding",
+    "Remarkable",
+    "Shazam",
+    "Impressive",
+    "Great",
+    "Well done",
+    "Fabulous",
+    "Clever",
+    "Dazzling",
+    "Fantastic",
+    "Excellent",
+    "Nice",
+    "Super",
+    "Awesome",
+    "Ojoo",
+    "Brilliant",
+    "Splendid",
+    "Exceptional",
+    "Magnificent",
+    "Yay",
+  ],
+  remainingOjoos: [],
+  endGameTOH1: undefined,
+  endGameTOH2: undefined,
+  endGameTOH3: undefined,
+  onHomeScreen: true,
+  undoStack: [],
+  undone: false,
+  gameEnded: true,
 
-  function init() {
-    $('#scorenr').html(getScore());
-    $('#tweeturl').hide();
-    
-    if (Utils.isTouch())
-      $('html').addClass('touch');
-    
-    $('[data-size]').each(function(i,el){
-      var $el = $(el),
-          size = $el.attr('data-size') * 1,
-          label = sizes[size - 1];
-      $el.html(label)
-      $el.on('touchstart mousedown', function(evt){
+  init: function () {
+    $("#scorenr").html(window.highscores.getScore());
+
+    if (Utils.isTouch()) $("html").addClass("touch");
+
+    $("[data-size]").each((i, el) => {
+      const $el = $(el),
+        size = $el.attr("data-size") * 1,
+        label = this.sizes[size - 1];
+      $el.html(label);
+      $el.on("touchstart mousedown", (evt) => {
         if (Utils.isDoubleTapBug(evt)) return false;
-        var size = sizes[$(evt.target).closest('[data-size]').attr('data-size') * 1 - 1];
-        loadGame(size);
-      })
-    })
-    resize();
-    $(window).on('resize', resize);
-    $(window).on('orientationchange', resize);
+        const size =
+          this.sizes[
+            $(evt.target).closest("[data-size]").attr("data-size") * 1 - 1
+          ];
+        this.loadGame(size);
+      });
+    });
+    this.resize();
+    $(window).on("resize", this.resize.bind(this));
+    $(window).on("orientationchange", this.resize.bind(this));
 
-    showTitleScreen();
-    resize();
-    
-    var colors = ['#a7327c', '#c24b31', '#c0cd31']
+    this.resize();
+
+    const colors = ["#a7327c", "#c24b31", "#c0cd31"];
     Utils.setColorScheme(colors[1]);
-  }
+  },
 
-  function start() {
-    // kick in the bgservice in a few ms (fixes non-working iOS5)
-    setTimeout(function() {
-      BackgroundService.kick();
-    }, 100);
-    if (debug) {
-      addEventListeners();
-      showMenu();
-      return;
-    }
-    setTimeout(function(){$('.hide0').removeClass('hide0')}, 300);
-    setTimeout(function(){$('.hide1').removeClass('hide1')}, 1300);
-    setTimeout(function(){$('.show01').removeClass('hidehs')}, 2300);
-    setTimeout(function(){$('.show01').removeClass('show01').addClass('hidehs'); addEventListeners();}, 4200);
-  }
+  start: function () {
+    this.addEventListeners();
+    this.showMenu();
+  },
 
-  function resize() {
-    var desired = {
-          width: 320,
-          height: 480
-        },
-        aspectRatio = desired.width / desired.height,
-        viewport = {
-          width: $('#feelsize').width(),
-          height: $('#feelsize').height()
-        },
-        sizeToWidth = ((viewport.width / viewport.height) < aspectRatio)
+  resize: function () {
+    const desired = {
+        width: 320,
+        height: 480,
+      },
+      aspectRatio = desired.width / desired.height,
+      viewport = {
+        width: $("#feelsize").width(),
+        height: $("#feelsize").height(),
+      },
+      sizeToWidth = viewport.width / viewport.height < aspectRatio;
 
-    var box = {
-      width: Math.floor(sizeToWidth? viewport.width : (viewport.height/desired.height) * desired.width),
-      height: Math.floor(sizeToWidth? (viewport.width/desired.width) * desired.height : viewport.height)
-    }
+    const box = {
+      width: Math.floor(
+        sizeToWidth
+          ? viewport.width
+          : (viewport.height / desired.height) * desired.width,
+      ),
+      height: Math.floor(
+        sizeToWidth
+          ? (viewport.width / desired.width) * desired.height
+          : viewport.height,
+      ),
+    };
 
-    $('#container').css({'width': box.width + 'px', 'height': box.height + 'px'});
+    $("#container").css({ width: box.width + "px", height: box.height + "px" });
 
-    var containerSize = box.width;
+    const containerSize = box.width;
 
-    $('h1').css('font-size', Math.round(containerSize * .24) + 'px')
-    $('h2').css('font-size', Math.round(containerSize * .18) + 'px')
-    $('h3').css('font-size', Math.round(containerSize * .15) + 'px')
-    $('p').css('font-size', Math.round(containerSize * .07) + 'px')
-    $('#menu h2').css('font-size', Math.round(containerSize * .24) + 'px')
-    $('#menu p').css('font-size', Math.round(containerSize * .1) + 'px')
-    $('#menu p').css('padding', Math.round(containerSize * .05) + 'px 0')
-    $('#menu p').css('line-height', Math.round(containerSize * .1) + 'px')
-    var scoreSize = Math.round(containerSize * .1);
-    $('#score').css({'font-size': scoreSize + 'px', 'line-height': (scoreSize * 0.85) + 'px', 'height': scoreSize + 'px'});
+    $("h1").css("font-size", Math.round(containerSize * 0.24) + "px");
+    $("h2").css("font-size", Math.round(containerSize * 0.18) + "px");
+    $("h3").css("font-size", Math.round(containerSize * 0.15) + "px");
+    $("p").css("font-size", Math.round(containerSize * 0.07) + "px");
+    $("#menu h2").css("font-size", Math.round(containerSize * 0.24) + "px");
+    $("#menu p").css("font-size", Math.round(containerSize * 0.1) + "px");
+    $("#menu p").css("padding", Math.round(containerSize * 0.05) + "px 0");
+    $("#menu p").css("line-height", Math.round(containerSize * 0.1) + "px");
+    const scoreSize = Math.round(containerSize * 0.1);
+    $("#score").css({
+      "font-size": scoreSize + "px",
+      "line-height": scoreSize * 0.85 + "px",
+      height: scoreSize + "px",
+    });
 
-    var iconSize = Math.floor((22/320) * containerSize);
-    $('.icon').css({width:iconSize,height:iconSize,marginLeft:iconSize,marginRight:iconSize});
+    const iconSize = Math.floor((22 / 320) * containerSize);
+    $(".icon").css({
+      width: iconSize,
+      height: iconSize,
+      marginLeft: iconSize,
+      marginRight: iconSize,
+    });
 
-    $('.board table').each(function(i,el){
-      var $el = $(el),
-          id = $el.attr('data-grid'),
-          w = $el.width(),
-          size = $el.find('tr').first().children('td').length;
-      
-      var tileSize = Math.floor(w / size);
-      
+    $(".board table").each((i, el) => {
+      const $el = $(el),
+        id = $el.attr("data-grid"),
+        w = $el.width(),
+        size = $el.find("tr").first().children("td").length;
+
+      const tileSize = Math.floor(w / size);
+
       if (!tileSize) return;
 
-      $el.find('.tile').css({width:tileSize,height:tileSize,'line-height':Math.round(tileSize * 0.85) + 'px','font-size':Math.round(tileSize * 0.5) + 'px'});
-      var radius = Math.round(tileSize * 0.1);
-      var radiusCss = '#' + id + ' .tile .inner { border-radius: ' + radius + 'px; }' +
-        '#' + id + ' .tile-1 .inner:after, #' + id + ' .tile-2 .inner:after { border-radius: ' + radius + 'px; }';
-      
-      Utils.createCSS(radiusCss, id + 'radius');
-      Utils.createCSS('.tile.marked .inner { border-width: ' + Math.floor(tileSize / 24)+ 'px }', 'tileSize');
+      $el.find(".tile").css({
+        width: tileSize,
+        height: tileSize,
+        "line-height": Math.round(tileSize * 0.85) + "px",
+        "font-size": Math.round(tileSize * 0.5) + "px",
+      });
+      const radius = Math.round(tileSize * 0.1);
+      const radiusCss =
+        "#" +
+        id +
+        " .tile .inner { border-radius: " +
+        radius +
+        "px; }" +
+        "#" +
+        id +
+        " .tile-1 .inner:after, #" +
+        id +
+        " .tile-2 .inner:after { border-radius: " +
+        radius +
+        "px; }";
+
+      Utils.createCSS(radiusCss, id + "radius");
+      Utils.createCSS(
+        ".tile.marked .inner { border-width: " +
+          Math.floor(tileSize / 24) +
+          "px }",
+        "tileSize",
+      );
     });
-    $('#digits').width($('#titlegrid table').width()).height($('#titlegrid table').height())
-    $('#digits').css({'line-height':Math.round($('#titlegrid table').height() * 0.92) + 'px','font-size':$('#titlegrid table').height() * .5 + 'px'});
 
-    var topVSpace = Math.floor($('#container').height() / 2 - $('#board').height() / 2);
-    $('#hintMsg').height(topVSpace + 'px');
-  }
+    const topVSpace = Math.floor(
+      $("#container").height() / 2 - $("#board").height() / 2,
+    );
+    $("#hintMsg").height(topVSpace + "px");
+  },
 
-  function showTitleScreen() {
-    onHomeScreen = true;
-    $('.screen').hide().removeClass('show');
-    $('#title').show();
-    setTimeout(function() { $('#title').addClass('show'); },0);
-  }
+  showScoreboard: function () {
+    this.onHomeScreen = false;
+    $(".screen").hide().removeClass("show");
+    $("#scoreboard").show();
+    setTimeout(() => {
+      $("#scoreboard").addClass("show");
+    }, 0);
+    this.resize();
+  },
 
-  function showGame() {
-    onHomeScreen = false;
-    $('.screen').hide().removeClass('show');
-    $('#game').show();
-    setTimeout(function() { $('#game').addClass('show'); },0);
-    resize();
-  }
+  showGame: function () {
+    this.onHomeScreen = false;
+    $(".screen").hide().removeClass("show");
+    $("#game").show();
+    setTimeout(() => {
+      $("#game").addClass("show");
+    }, 0);
+    this.resize();
+  },
 
-  function showMenu() {
-    onHomeScreen = true;
-    clearTimeouts();
-    $('.screen').hide().removeClass('show');
-    $('#menu').show();
-    $('#scorenr').html(getScore());
-    setTimeout(function() { $('#menu').addClass('show'); },0);
-    resize();
-  }
+  showMenu: function () {
+    this.onHomeScreen = true;
+    this.clearTimeouts();
+    if (window.highscores.getHighScores().length) $("#scores-btn").show();
+    $(".screen").hide().removeClass("show");
+    $("#menu").show();
+    $("#scorenr").html(window.highscores.getScore());
+    setTimeout(() => {
+      $("#menu").addClass("show");
+    }, 0);
+    this.resize();
+  },
 
-  function showAbout() {
-    onHomeScreen = false;
-    $('.screen').hide().removeClass('show');
-    $('#about').show();
-    setTimeout(function() { $('#about').addClass('show'); },0);
-    resize();
-  }
+  showAbout: function () {
+    this.onHomeScreen = false;
+    $(".screen").hide().removeClass("show");
+    $("#about").show();
+    setTimeout(() => {
+      $("#about").addClass("show");
+    }, 0);
+    this.resize();
+  },
 
-  function showSizes() {
-    onHomeScreen = false;
-    showGame();
-    $('#boardsize').html('<span>Select a size</span>');
-    $('#menugrid').removeClass('hidden');
-    $('#board').addClass('hidden');
-    $('#bar [data-action]').not('[data-action="back"]').hide();
-    $('#board').addClass('hidden');
-    $('#score').show();
-    setTimeout(function() {
-      if (grid) grid.clear();
-      $('#score').addClass('show');
-    },0);
-  }
+  showSizes: function () {
+    this.onHomeScreen = false;
+    this.showGame();
+    $("#boardsize").html("<span>Select a size</span>");
+    $("#menugrid").removeClass("hidden");
+    $("#board").addClass("hidden");
+    $("#bar [data-action]").not('[data-action="back"]').hide();
+    $("#board").addClass("hidden");
+    $("#score").show();
+    setTimeout(() => {
+      if (this.grid) this.grid.clear();
+      $("#score").addClass("show");
+    }, 0);
+  },
 
-  function showLoad() {
-    onHomeScreen = false;
-    $('.screen').hide().removeClass('show');
-    $('#loading').show();
-    setTimeout(function() { $('#loading').addClass('show'); },0);
-  }
-  
-  function loadGame(size) {
-    onHomeScreen = false;
-    $('#game').removeClass('show')
-    showLoad();
-    resize();
-    
+  showLoad: function () {
+    this.onHomeScreen = false;
+    $(".screen").hide().removeClass("show");
+    $("#loading").show();
+    setTimeout(() => {
+      $("#loading").addClass("show");
+    }, 0);
+  },
+
+  loadGame: function (size) {
+    this.onHomeScreen = false;
+    $("#game").removeClass("show");
+    this.showLoad();
+    this.resize();
+
     // don't show a loading screen if we have a puzzle ready
     if (Levels.hasPuzzleAvailable(size)) {
-      setTimeout(function() {
-        startGame(Levels.getSize(size));
-      },100);
+      setTimeout(() => {
+        this.startGame(Levels.getSize(size));
+      }, 100);
       return;
     }
 
-    setTimeout(function() {
-      var puzzle = Levels.getSize(size);
-      startGame(puzzle);
+    setTimeout(() => {
+      const puzzle = Levels.getSize(size);
+      this.startGame(puzzle);
     }, 100);
-  }
+  },
 
   // puzzle is object with format { size:6, full:[2,1,...], empty:[0,0,2,...], quality: 76, ms: 42 }
-  function startGame(puzzle) {
-    onHomeScreen = false;
+  startGame: function (puzzle) {
+    this.onHomeScreen = false;
     if (!puzzle || !puzzle.size || !puzzle.full)
-      throw 'no proper puzzle object received'
-    
+      throw "no proper puzzle object received";
+
     //console.log(puzzle);
-    clearTimeouts();
+    this.clearTimeouts();
     if (window.STOPPED) return;
-    startedTutorial = false;
-    $('#undo').closest('.iconcon').css('display', 'inline-block');
-    $('#menugrid').addClass('hidden');
-    $('#board').removeClass('hidden');
-    $('#bar [data-action]').show();
-    $('#tweeturl').hide();
-    $('#chooseSize').removeClass('show');
-    $('#score').removeClass('show').hide();
-    $('#bar [data-action="help"]').removeClass('hidden wiggle');
-    $('#boardsize').html('<span>' + puzzle.size + ' x ' + puzzle.size + '</span>');
-    grid = new Grid(puzzle.size, puzzle.size);
-    lastSize = puzzle.size;
+    this.startedTutorial = false;
+    $("#undo").closest(".iconcon").css("display", "inline-block");
+    $("#menugrid").addClass("hidden");
+    $("#board").removeClass("hidden");
+    $("#bar [data-action]").show();
+    $("#chooseSize").removeClass("show");
+    $("#score").removeClass("show").hide();
+    $('#bar [data-action="help"]').removeClass("hidden wiggle");
+    $("#boardsize").html(
+      "<span>" + puzzle.size + " x " + puzzle.size + "</span>",
+    );
+    this.grid = new Grid(puzzle.size, puzzle.size);
+    this.lastSize = puzzle.size;
 
-    grid.load(puzzle.empty, puzzle.full);
+    this.grid.load(puzzle.empty, puzzle.full);
     // set system tiles manually
-    grid.each(function(){
+    this.grid.each(function () {
       this.value = this.value; // yes, do so
-      if (this.value > 0)
-        this.system = true;
+      if (this.value > 0) this.system = true;
     });
-    grid.state.save('empty');
+    this.grid.state.save("empty");
 
+    this.currentPuzzle = puzzle;
+    this.grid.hint.active = true;
+    this.grid.activateDomRenderer();
+    this.grid.render();
+    this.undoStack = [];
+    this.undone = false;
+    this.gameEnded = false;
 
-    currentPuzzle = puzzle;
-    grid.hint.active = true;
-    grid.activateDomRenderer();
-    grid.render();
-    undoStack = [];
-    undone = false;
-    gameEnded = false;
+    setTimeout(this.showGame.bind(this), 0);
+  },
 
-    setTimeout(showGame, 0);
-  }
-
-  function endGame() {
+  endGame: function () {
     // first of all, save the score, so if you quit while the animation runs, the score is kept
-    var oldScore = getScore(),
-        newScore = setScore(grid.width * grid.height);
+    const oldScore = window.highscores.getScore();
+    this.setScore(this.grid.width * this.grid.height);
+    const newScore = window.highscores.getScore();
 
-    grid.unmark();
-    grid.hint.hide();
-    grid.hint.active = false;
-    var ojoo = getOjoo() + '!';
-    $('#boardsize').html('<span>' + ojoo + '</span>');
-    grid.each(function() { this.system = true; });
-    $('#bar [data-action]').not('[data-action="back"]').hide();
+    this.grid.unmark();
+    this.grid.hint.hide();
+    this.grid.hint.active = false;
+    const ojoo = this.getOjoo() + "!";
+    $("#boardsize").html("<span>" + ojoo + "</span>");
+    this.grid.each(() => {
+      this.system = true;
+    });
+    $("#bar [data-action]").not('[data-action="back"]').hide();
 
-    endGameTOH3 = setTimeout(function(){
-      $('#grid .tile').addClass('completed');
-      endGameTOH1 = setTimeout(function() {
-        $('#board').addClass('hidden');
-        endGameTOH2 = setTimeout(function() {
-          gameEnded = true;
-          $('#menugrid').removeClass('hidden');
-          $('#chooseSize').addClass('show');
-          $('#score').show();
+    this.endGameTOH3 = setTimeout(() => {
+      $("#grid .tile").addClass("completed");
+      this.endGameTOH1 = setTimeout(() => {
+        $("#board").addClass("hidden");
+        this.endGameTOH2 = setTimeout(() => {
+          this.gameEnded = true;
+          $("#menugrid").removeClass("hidden");
+          $("#chooseSize").addClass("show");
+          $("#score").show();
 
           // animate the score visually from its old value to the new one
-          if (!startedTutorial) {
+          if (!this.startedTutorial) {
             if (newScore > oldScore) {
-              animateScore(oldScore, newScore);
-              if (tweet && !currentPuzzle.isTutorial) {
-                updateTweetUrl(currentPuzzle.size);
-                $('#tweeturl').show();
-              }
+              this.animateScore(oldScore, newScore);
             }
           }
 
-          setTimeout(function() { $('#score').addClass('show');}, 0);
-
+          setTimeout(() => {
+            $("#score").addClass("show");
+          }, 0);
         }, 50);
       }, 2000);
     }, 1200);
 
     // shift
-    if (!currentPuzzle.isTutorial)
-      Levels.finishedSize(grid.width);
-  }
+    if (!this.currentPuzzle.isTutorial) Levels.finishedSize(this.grid.width);
+  },
 
-  function quitCurrentGame() {
-    gameEnded = true;
-    if (grid) {
-      grid.unmark();
-      grid.hint.hide();
-      grid.hint.active = false;
-      grid.each(function() { this.system = true; });
+  quitCurrentGame: function () {
+    this.gameEnded = true;
+    if (this.grid) {
+      this.grid.unmark();
+      this.grid.hint.hide();
+      this.grid.hint.active = false;
+      this.grid.each(() => {
+        this.system = true;
+      });
     }
-    showSizes();
-  }
+    this.showSizes();
+  },
 
-  function addEventListeners() {
-    document.addEventListener("backbutton", backButtonPressed, false);
+  addEventListeners: function () {
+    document.addEventListener(
+      "backbutton",
+      this.backButtonPressed.bind(this),
+      false,
+    );
 
-    $(document).on('keydown', function(evt){
-      if (evt.keyCode == 27 /* escape */) { backButtonPressed(); return false; }
-      if (evt.keyCode == 32 /* space */) { doAction('help'); return false; }
+    $(document).on("keydown", (evt) => {
+      if (evt.keyCode == 27 /* escape */) {
+        backButtonPressed();
+        return false;
+      }
+      if (evt.keyCode == 32 /* space */) {
+        this.doAction("help");
+        return false;
+      }
       if (evt.keyCode == 90 /* Z */ && (evt.metaKey || evt.ctrlKey)) {
-        doAction('undo');
+        this.doAction("undo");
         return false;
       }
     });
-    $(document).on('touchend mouseup', click);
-    $(document).on('touchstart mousedown', '#grid td', function(e) {
+    $(document).on("touchend mouseup", this.click.bind(this));
+    $(document).on("touchstart mousedown", "#grid td", (e) => {
       if (Utils.isDoubleTapBug(e)) return false;
-      var $el = $(e.target).closest('td'),
-          x = $el.attr('data-x') * 1,
-          y = $el.attr('data-y') * 1,
-          tile = grid.tile(x, y);
+      const $el = $(e.target).closest("td"),
+        x = $el.attr("data-x") * 1,
+        y = $el.attr("data-y") * 1,
+        tile = this.grid.tile(x, y);
 
-      clearTimeout(checkTOH);
+      clearTimeout(this.checkTOH);
 
       if (tile.system) {
-        var $tile = $el.find('.tile');
-        $tile.addClass('error');
-        setTimeout(function() {
-          $tile.removeClass('error');
+        const $tile = $el.find(".tile");
+        $tile.addClass("error");
+        setTimeout(() => {
+          $tile.removeClass("error");
         }, 500);
         return false;
       }
-      
+
       if (Tutorial.active) {
         Tutorial.tapTile(tile);
         return false;
       }
-      
-      if (grid && grid.hint)
-        grid.hint.clear();
+
+      if (this.grid && this.grid.hint) this.grid.hint.clear();
 
       // create new undo
-      var undoState = [tile, tile.value, new Date()];
-      if (undoStack.length) {
+      const undoState = [tile, tile.value, new Date()];
+      if (this.undoStack.length) {
         // check if the last state was done a few ms ago, then consider it as one change
-        var lastState = undoStack[undoStack.length - 1],
-            lastTile = lastState[0],
-            lastChange = lastState[2];
-        if (lastTile.id != tile.id || (new Date() - lastChange > 500))
-          undoStack.push(undoState);
-      } 
-      else
-        undoStack.push(undoState);
+        const lastState = this.undoStack[this.undoStack.length - 1],
+          lastTile = lastState[0],
+          lastChange = lastState[2];
+        if (lastTile.id != tile.id || new Date() - lastChange > 500)
+          this.undoStack.push(undoState);
+      } else this.undoStack.push(undoState);
 
-      if (tile.isEmpty)
-        tile.value = 1;
-      else if (tile.value == 1)
-        tile.value = 2;
-      else
-        tile.clear();
+      if (tile.isEmpty) tile.value = 1;
+      else if (tile.value == 1) tile.value = 2;
+      else tile.clear();
 
       if (tile.value > 0)
-        checkTOH = setTimeout(function(){checkForLevelComplete();}, 700);
+        this.checkTOH = setTimeout(() => {
+          this.checkForLevelComplete();
+        }, 700);
       return false;
     });
-  }
+  },
 
-  function click(evt) {
+  click: function (evt) {
     if (Utils.isDoubleTapBug(evt)) return false;
-    var $el = $(evt.target).closest('*[data-action]'),
-        action = $(evt.target).closest('*[data-action]').attr('data-action'),
-        value = $el.attr('data-value');
+    const $el = $(evt.target).closest("*[data-action]"),
+      action = $el.attr("data-action"),
+      value = $el.attr("data-value");
     if (action) {
-      doAction(action, value);
+      this.doAction(action, value);
       return false;
     }
-  }
+  },
 
-  function doAction(action, value) {
+  doAction: function (action, value) {
     switch (action) {
-      case 'close-titleScreen':
-        if (!tutorialPlayed())
-          startTutorial();
-        else
-          showMenu();
-        break;
-      case 'show-menu':
-        clearTimeout(checkTOH);
+      case "show-menu":
+        clearTimeout(this.checkTOH);
         Tutorial.end();
-        if (grid)
-          grid.hint.clear();
-        showMenu();
+        if (this.grid) this.grid.hint.clear();
+        this.showMenu();
         break;
-      case 'back':
-        if (gameEnded) 
-          return doAction('show-menu');
-        clearTimeout(checkTOH);
+      case "back":
+        if (this.gameEnded) return this.doAction("show-menu");
+        clearTimeout(this.checkTOH);
         Tutorial.end();
-        quitCurrentGame();
+        this.quitCurrentGame();
         break;
-      case 'next':
-        clearTimeout(checkTOH);
+      case "next":
+        clearTimeout(this.checkTOH);
         Tutorial.end();
-        if (grid)
-          grid.hint.clear();
-        loadGame(lastSize);
+        if (this.grid) this.grid.hint.clear();
+        this.loadGame(this.lastSize);
         break;
-      case 'undo':
-        if (!gameEnded)
-          undo();
+      case "undo":
+        if (!this.gameEnded) this.undo();
         break;
-      case 'retry':
-        clearTimeout(checkTOH);
-        $('#game').removeClass('show')
-        if (Tutorial.active || currentPuzzle.isTutorial) {
-          setTimeout(function(){
+      case "retry":
+        clearTimeout(this.checkTOH);
+        $("#game").removeClass("show");
+        if (Tutorial.active || this.currentPuzzle.isTutorial) {
+          setTimeout(() => {
             Tutorial.start();
           }, 300);
           return;
         }
-        setTimeout(function(){
-          startGame(currentPuzzle);
+        setTimeout(() => {
+          this.startGame(this.currentPuzzle);
         }, 300);
-        //grid.hint.clear();
-        //grid.each(function() { this.system = true;});
+        //this.grid.hint.clear();
+        //this.grid.each(function() { this.system = true;});
 
-        //grid.state.restore('empty');
+        //this.grid.state.restore('empty');
         break;
-      case 'help':
-        if (gameEnded) 
-          break;
-        clearTimeout(checkTOH);
-        if (Tutorial.active && !Tutorial.hintAllowed())
-          return;
-        if (grid.hint.visible)
-          grid.hint.clear();
+      case "help":
+        if (this.gameEnded) break;
+        clearTimeout(this.checkTOH);
+        if (Tutorial.active && !Tutorial.hintAllowed()) return;
+        if (this.grid.hint.visible) this.grid.hint.clear();
         else {
-          grid.hint.clear();
-          grid.hint.next();
+          this.grid.hint.clear();
+          this.grid.hint.next();
         }
         break;
-      case 'play':
-        showSizes();
+      case "play":
+        this.showSizes();
         break;
-      case 'tutorial':
-        startTutorial();
+      case "scoreboard":
+        this.showScoreboard();
         break;
-      case 'about':
-        showAbout();
+      case "tutorial":
+        this.startTutorial();
+        break;
+      case "about":
+        this.showAbout();
         break;
     }
-  }
+  },
 
-  function checkForLevelComplete() {
-    if (grid.emptyTileCount > 0)
-      return;
+  checkForLevelComplete: function () {
+    if (this.grid.emptyTileCount > 0) return;
 
-    if (grid.wrongTiles.length > 0) {
-      grid.hint.next();
+    if (this.grid.wrongTiles.length > 0) {
+      this.grid.hint.next();
       return;
     }
 
-    endGame();
-  }
+    this.endGame();
+  },
 
-  function tutorialPlayed() {
+  tutorialPlayed: function () {
     if (!window.localStorage) return true;
-    return (window.localStorage.getItem('tutorialPlayed') + '') == 'true';
-  }
+    return window.localStorage.getItem("tutorialPlayed") + "" == "true";
+  },
 
-  function markTutorialAsPlayed() {
+  markTutorialAsPlayed: function () {
     if (!window.localStorage) return;
-    window.localStorage.setItem('tutorialPlayed', true);
-  }
+    window.localStorage.setItem("tutorialPlayed", true);
+  },
 
-  function startTutorial() {
-    onHomeScreen = false;
+  startTutorial: function () {
+    this.onHomeScreen = false;
     Tutorial.start();
     // set flag to not get points for the tutorial...
-    startedTutorial = true;
+    this.startedTutorial = true;
     // ... except when this is the first time
-    if (!tutorialPlayed())
-      startedTutorial = false;
+    if (!this.tutorialPlayed()) this.startedTutorial = false;
 
-    markTutorialAsPlayed();
-    $('#undo').closest('.iconcon').css('display', 'none');
-  }
+    this.markTutorialAsPlayed();
+    $("#undo").closest(".iconcon").css("display", "none");
+  },
 
-  function backButtonPressed() {
-    if (onHomeScreen)
-      navigator.app.exitApp()
-    else 
-      doAction('back');
-  }
+  backButtonPressed: function () {
+    if (this.onHomeScreen) navigator.app.exitApp();
+    else this.doAction("back");
+  },
 
-  function getOjoo() {
-    if (!remainingOjoos.length)
-      remainingOjoos = Utils.shuffle(ojoos.slice(0));
-    return Utils.draw(remainingOjoos);
-  }
+  getOjoo: function () {
+    if (!this.remainingOjoos.length)
+      this.remainingOjoos = Utils.shuffle(this.ojoos.slice(0));
+    return Utils.draw(this.remainingOjoos);
+  },
 
-  function getScore() {
-    return (window.localStorage.getItem('score') * 1);
-  }
+  setScore: function (addPoints) {
+    if (this.currentPuzzle.isTutorial) return;
 
-  function setScore(addPoints) {
-    clearTimeout(setScore.TOH)
-    var curScore = score = getScore(),
-        newScore = curScore + (addPoints? addPoints : 0);
-    if (newScore <= curScore) 
-      return curScore;
+    clearTimeout(this.setScore.TOH);
+    window.highscores.setScore(window.highscores.getScore() + addPoints);
+    return window.highscores.getScore();
+  },
 
-    window.localStorage.setItem('score', newScore);
-    return newScore;
-  }
+  animateScore: function (curScore, newScore) {
+    const delay = 500 / (newScore - curScore);
+    next(this);
 
-  function animateScore(curScore, newScore) {
-    var delay = 500 / (newScore - curScore);
-    next();
-
-    function next() {
-      $('#scorenr').html(curScore);
-      if (curScore < newScore)
-        curScore++;
-      setScore.TOH = setTimeout(next, delay)
+    function next(game) {
+      $("#scorenr").html(curScore);
+      if (curScore < newScore) curScore++;
+      game.setScore.TOH = setTimeout(() => next(game), delay);
     }
-  }
+  },
 
-  function undo() {
-    if (!undoStack.length) {
-      if (grid.hint.visible) {
-        grid.unmark();
-        grid.hint.hide();
+  undo: function () {
+    if (!this.undoStack.length) {
+      if (this.grid.hint.visible) {
+        this.grid.unmark();
+        this.grid.hint.hide();
         return;
       }
-      if (!undone)
-        grid.hint.show('That\'s the undo button.');
-      else
-        grid.hint.show('Nothing to undo.');
+      if (!this.undone) this.grid.hint.show("That's the undo button.");
+      else this.grid.hint.show("Nothing to undo.");
       return;
     }
-    var undoState = undoStack.pop(),
-        tile = undoState[0],
-        value = undoState[1];
-    grid.unmark();
+    const undoState = this.undoStack.pop(),
+      tile = undoState[0],
+      value = undoState[1];
+    this.grid.unmark();
     if (value >= 0) {
       tile.value = value;
     } else {
       tile.clear();
     }
     tile.mark();
-    var s = 'This tile was reversed to ';
-    if (value == 1) s += 'red.';
-    if (value == 2) s += 'blue.';
-    if (value == 0) s += 'its empty state.'
-    grid.hint.show(s);
-    undone = true;
-    clearTimeout(checkTOH);
-    checkTOH = setTimeout(function(){checkForLevelComplete();}, 700);
-  }
+    let s = "This tile was reversed to ";
+    if (value == 1) s += "red.";
+    if (value == 2) s += "blue.";
+    if (value == 0) s += "its empty state.";
+    this.grid.hint.show(s);
+    this.undone = true;
+    clearTimeout(this.checkTOH);
+    this.checkTOH = setTimeout(() => {
+      this.checkForLevelComplete();
+    }, 700);
+  },
 
-  function clearTimeouts() {
-    clearTimeout(endGameTOH1);
-    clearTimeout(endGameTOH2);
-    clearTimeout(endGameTOH3);
-  }
+  clearTimeouts: function () {
+    clearTimeout(this.endGameTOH1);
+    clearTimeout(this.endGameTOH2);
+    clearTimeout(this.endGameTOH3);
+  },
+};
 
-  function updateTweetUrl(size) {
-    var msg = '#0hh1 I just completed a ' + size + ' x ' + size + ' puzzle and my score is ' + getScore() + '.',
-        url = 'https://twitter.com/share?text=' + encodeURIComponent(msg);
-    $('#tweeturl').attr('href', url);
-  }
-
-  //this.setScore = setScore;
-
-  this.start = start;
-  this.init = init;
-  this.startGame = startGame;
-  this.showTitleScreen = showTitleScreen;
-  this.showGame = showGame;
-  this.showMenu = showMenu;
-  this.resize = resize;
-  this.showAbout = showAbout;
-  this.startTutorial = startTutorial;
-  this.checkForLevelComplete = checkForLevelComplete;
-  this.undo = undo;
-  
-  window.__defineGetter__('tile', function() { return grid.tile; });
-  this.__defineGetter__('grid', function() { return grid; });
-  this.__defineGetter__('debug', function() { return debug; });
-})();
+window.__defineGetter__("tile", function () {
+  return Game.grid.tile;
+});
