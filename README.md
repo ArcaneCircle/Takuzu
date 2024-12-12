@@ -2,14 +2,20 @@
 
 A lovely little logic game. This is a WebXDC port of https://github.com/florisluiten/0hh1
 
-## Developing
+## Contributing
 
 ### Installing Dependencies
 
-After cloning this repo, install dependecies:
+After cloning this repo, install dependencies:
 
 ```
 pnpm i
+```
+
+### Checking code format
+
+```
+pnpm check
 ```
 
 ### Testing the app in the browser
@@ -17,15 +23,7 @@ pnpm i
 To test your work in your browser (with hot reloading!) while developing:
 
 ```
-pnpm dev-mini
-# Alternatively to test in a more advanced WebXDC emulator:
-pnpm dev
-```
-
-### Checking code format
-
-```
-pnpm format:check
+pnpm start
 ```
 
 ### Building
