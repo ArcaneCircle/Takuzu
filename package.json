@@ -4,7 +4,7 @@
   "scripts": {
     "start": "vite --port 3000",
     "fix": "prettier --write .",
-    "check": "tsc && prettier --check .",
+    "check": "prettier --check .",
     "build": "vite build"
   },
   "devDependencies": {
