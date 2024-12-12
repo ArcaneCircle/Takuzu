@@ -9,12 +9,14 @@ import "./tutorial.js";
 import "./levels.js";
 
 const scoreboard = document.getElementById("scoreboard-container");
-window.highscores.init({
-  onHighscoresChanged: () => {
-    scoreboard.innerHTML = window.highscores.renderScoreboard().innerHTML;
-  },
-}).then(() => {
-  Game.init();
-  Game.start();
-  $("#container").show();
-});
+window.highscores
+  .init({
+    onHighscoresChanged: () => {
+      scoreboard.innerHTML = window.highscores.renderScoreboard().innerHTML;
+    },
+  })
+  .then(() => {
+    Game.init();
+    Game.start();
+    $("#container").show();
+  });
